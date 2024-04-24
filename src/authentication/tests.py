@@ -68,7 +68,7 @@ class UserModelTest(TestCase):
         self.assertTrue(self.superuser.is_active)
         self.assertTrue(self.superuser.is_superuser)
 
-    def test_signal(self):
+    def test_post_save_create_profile_receiver_signal(self):
         self.assertIsNotNone(self.user.profile)
         self.assertIsNone(self.user.profile.address)
 
