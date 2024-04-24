@@ -6,6 +6,7 @@ from django.contrib.auth.hashers import check_password
 from django.utils.encoding import force_bytes, force_str
 from django.utils.http import urlsafe_base64_encode 
 from django.contrib.auth.tokens import default_token_generator
+from django.db.models.signals import post_save
 
 
 # Rest Import
@@ -18,6 +19,8 @@ from rest_framework_simplejwt.tokens import RefreshToken
 # Local Imports
 from .tokens import account_activation_token
 from .helpers import AuthHelper
+from .models import Profile
+from .signals import post_save_create_profile_receiver
 
 
 User = get_user_model()
@@ -64,6 +67,57 @@ class UserModelTest(TestCase):
         self.assertTrue(self.superuser.is_staff)
         self.assertTrue(self.superuser.is_active)
         self.assertTrue(self.superuser.is_superuser)
+
+    def test_signal(self):
+        self.assertIsNotNone(self.user.profile)
+        self.assertIsNone(self.user.profile.address)
+
+
+
+class PofileModelTest(TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        # Disconnect the post_save signal to avoid creating Profile objects automatically
+        post_save.disconnect(receiver=post_save_create_profile_receiver, sender=User)
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        # Reconnect the post_save signal after testing
+        post_save.connect(receiver=post_save_create_profile_receiver, sender=User)
+    
+    def setUp(self) -> None:
+
+        self.user = User.objects.create_user(
+            email='test@gmail.com',
+            username='test_user',
+            first_name='Test',
+            last_name='User',
+            password='testpassword'
+        )
+        self.profile = Profile.objects.create(
+            user=self.user,
+            address="test address",
+            country="test country",
+            state="test state",
+            city="test city",
+            pin_code="123456",
+            latitude="123.456",
+            longitude="123.789"
+        )
+
+    def test_create_profile(self):
+        self.assertEqual(self.profile.user, self.user)
+        self.assertEqual(self.profile.address, "test address")
+        self.assertEqual(self.profile.country, "test country")
+        self.assertEqual(self.profile.state, "test state")
+        self.assertEqual(self.profile.city, "test city")
+        self.assertEqual(self.profile.pin_code, "123456")
+        self.assertEqual(self.profile.latitude, "123.456")
+        self.assertEqual(self.profile.longitude, "123.789")
+        self.assertEqual(self.profile.full_address(), "test address, test city, test state, test country, 123456")
 
 
 class SignUpViewTest(TestCase):

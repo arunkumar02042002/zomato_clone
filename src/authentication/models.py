@@ -128,7 +128,7 @@ class Profile(models.Model):
     city = models.CharField(max_length=15, blank=True, null=True)
     pin_code = models.CharField(max_length=6, blank=True, null=True)
 
-    # To calculate distance
+    # To locate user
     latitude = models.CharField(max_length=20, blank=True, null=True)
     longitude = models.CharField(max_length=20, blank=True, null=True)
 
@@ -136,7 +136,7 @@ class Profile(models.Model):
     modified_at = models.DateTimeField(auto_now=True)
 
     def full_address(self):
-        return f'{self.address_line_1}, {self.address_line_2}'
+        return f'{self.address}, {self.city}, {self.state}, {self.country}, {self.pin_code}'
 
     def __str__(self):
         return self.user.email
