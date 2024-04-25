@@ -70,10 +70,14 @@ class User(AbstractBaseUser, PermissionsMixin):
         error_messages={
             "unique": _("A user with that username already exists."),
         },
+
+        db_index=True
     )
+
     first_name = models.CharField(_("first name"), max_length=150, blank=True)
     last_name = models.CharField(_("last name"), max_length=150, blank=True)
-    email = models.EmailField(_("email address"), unique=True)
+
+    email = models.EmailField(_("email address"), unique=True, db_index=True)
 
     user_type = models.CharField(
         max_length=10, choices=UserTypeChoices.choices, default=UserTypeChoices.USER)
@@ -92,6 +96,7 @@ class User(AbstractBaseUser, PermissionsMixin):
             "Unselect this instead of deleting accounts."
         ),
     )
+    
     date_joined = models.DateTimeField(_("date joined"), default=timezone.now)
 
     objects = CustomUserManager()
