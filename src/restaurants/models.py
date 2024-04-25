@@ -26,7 +26,7 @@ class Restaurant(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return self.vendor_name
+        return self.name
 
 
 class DaysChoices:    
