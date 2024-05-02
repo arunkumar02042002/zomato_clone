@@ -48,12 +48,14 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework_simplejwt',
     'rest_framework_simplejwt.token_blacklist',
+    'drf_yasg',
 
 
     # Local
     "authentication",
     "generics",
-    "restaurants"
+    "restaurants",
+    "admin_dashboard"
 ]
 
 MIDDLEWARE = [
@@ -149,6 +151,14 @@ MEDIA_ROOT = 'media/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 
+# Email
+EMAIL_USE_TLS = True
+EMAIL_HOST = config('EMAIL_HOST')
+EMAIL_PORT = config('EMAIL_PORT', cast=int)
+EMAIL_HOST_USER = config('EMAIL_HOST_USER')
+EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD')
+
+
 # Frontend Settings
 FRONTEND_HOST = config('FRONTEND_HOST')
 FRONTEND_PROTOCOL = config('FRONTEND_PROTOCOL')
@@ -220,4 +230,13 @@ SIMPLE_JWT = {
     "AUTH_TOKEN_CLASSES": ("rest_framework_simplejwt.tokens.AccessToken",),
     "TOKEN_TYPE_CLAIM": "token_type",
     "AUTH_HEADER_TYPES": ("Bearer",),
+}
+
+
+SWAGGER_SETTINGS = {
+    "USE_SESSION_AUTH": True,
+    "SECURITY_DEFINITIONS": {
+        "Bearer": {"type": "apiKey", "name": "Authorization", "in": "header"}
+    },
+    "JSON_EDITOR": True
 }
