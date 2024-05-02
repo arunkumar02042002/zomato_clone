@@ -5,9 +5,11 @@ from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 from django.utils.encoding import force_bytes, force_str
 from django.contrib.auth.hashers import check_password
 from django.contrib.auth.tokens import default_token_generator
+from django.db import transaction
 
 # Rest Framework Imports
 from rest_framework.generics import GenericAPIView
+from rest_framework.views import APIView
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework import permissions as rest_permissions
@@ -21,8 +23,10 @@ from rest_framework_simplejwt.views import TokenRefreshView
 from . import serializers as auth_serializers
 from .helpers import AuthHelper, validation_error_handler
 from .tokens import account_activation_token, password_reset_token
-from .models import Profile
+from .utils import send_account_verification_email, send_password_reset_mail
 
+# Other apps import
+from restaurants.models import Restaurant
 
 User = get_user_model()
 
@@ -77,20 +81,9 @@ class SignUpView(GenericAPIView):
 
         serializer_data = self.serializer_class(user).data
 
-        # Email
-        # subject = "Verify Email for your account on My App"
-        # template = "auth/email/verify_email.html"
-        # context_data = {
-        #     "host": settings.FRONTEND_HOST,
-        #     "uid": urlsafe_base64_encode(force_bytes(user.id)),
-        #     "token": account_activation_token.make_token(user=user),
-        #     "protocol": settings.FRONTEND_PROTOCOL
-        # }
-
-        print(
-            f"uid: {urlsafe_base64_encode(force_bytes(user.id))}, token: {account_activation_token.make_token(user=user)}")
         try:
             # Send Verification Email here
+            send_account_verification_email(user=user)
 
             return Response({
                 "status": "success",
@@ -101,6 +94,106 @@ class SignUpView(GenericAPIView):
                     "tokens": AuthHelper.get_tokens_for_user(user)
                 }
             }, status=status.HTTP_201_CREATED)
+        except Exception as e:
+            print(e)
+            # logger.error(
+            #     "Some error occurred in signup endpoint", exc_info=True)
+            return Response({
+                "status": "error",
+                "message": "Some error occurred",
+                "payload": {}
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class RestaurantSignUpView(GenericAPIView):
+    serializer_class = auth_serializers.RegisterRestaurantSerializer
+
+    def post(self, request, *args, **kwargs):
+        requested_data = request.data
+        
+        serializer = self.serializer_class(data=requested_data)
+
+        if serializer.is_valid() is False:
+            return Response({
+                "status":"error",
+                "message":validation_error_handler(serializer.errors),
+                "payload":{
+                    "error":serializer.errors,
+                }
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        
+        validated_data = serializer.validated_data
+
+        # Restaurant Data
+        license = validated_data.pop('license')
+        restaurant_name = validated_data.pop('restaurant_name')
+
+        # User data
+        email = validated_data['email']
+        password = validated_data['password']
+        first_name = validated_data['first_name']
+        last_name = validated_data['last_name']
+
+        existing_user = User.objects.filter(email=email).first()
+
+        if existing_user is not None:
+            # If verification fails because of third-party apps, user can signup again
+            if existing_user.is_active is False:
+                with transaction.atomic():
+                    existing_user.set_password(password)
+                    existing_user.first_name=first_name
+                    existing_user.last_name=last_name
+                    existing_user.save()
+
+                    user = existing_user
+
+                    restaurant = Restaurant.objects.update_or_create(user=user, defaults={
+                        "license":license, 
+                        "name":restaurant_name,
+                        "profile":user.profile
+                    })
+            else:
+                return Response({
+                    "stautus": "error",
+                    "message": "Account with this email address already exists.",
+                    "payload": {},
+                }, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            existing_restaurant = Restaurant.objects.filter(name=restaurant_name).first()
+
+            if existing_restaurant:
+                return Response({
+                    "stautus": "error",
+                    "message": "A reatuarant with that name already exists.",
+                    "payload": {},
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            username = AuthHelper.create_username(email=email)
+            
+            with transaction.atomic():
+                user = User.objects.create_user(
+                    username=username,
+                    user_type='RESTAURANT',
+                    is_active=False,
+                    **validated_data
+                )
+                restaurant = Restaurant.objects.create(user=user, profile=user.profile, license=license, name=restaurant_name)
+        try:
+            
+            # If the mail fails user can re-register
+            send_account_verification_email(user=user)
+
+            return Response({
+                "status": "success",
+                "message": "Sent the account verification link to your email address",
+                "payload": {
+                    "email":user.email,
+                    "user_type":user.user_type,
+                    "tokens": AuthHelper.get_tokens_for_user(user)
+                }
+            }, status=status.HTTP_201_CREATED)
+        
         except Exception:
             # logger.error(
             #     "Some error occurred in signup endpoint", exc_info=True)
@@ -111,8 +204,8 @@ class SignUpView(GenericAPIView):
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-class ActivateAccountView(GenericAPIView):
-
+class ActivateAccountView(APIView):
+    
     def get(self, request, *args, **kwargs):
 
         try:
@@ -120,6 +213,7 @@ class ActivateAccountView(GenericAPIView):
             token = kwargs['token']
             uid = force_str(urlsafe_base64_decode(uidb64))
             user = User.objects.get(id=uid)
+
         except (TypeError, ValueError, OverflowError, User.DoesNotExist):
             user = None
 
@@ -321,8 +415,10 @@ class PasswordResetView(GenericAPIView):
             }, status=status.HTTP_400_BAD_REQUEST)
         
         email = serializer.validated_data['email']
+
         try:
             user = User.objects.get(email=email, is_active=True)
+
         except User.DoesNotExist:
             return Response({
                 "status":"error",
@@ -330,32 +426,22 @@ class PasswordResetView(GenericAPIView):
                 "payload":{}
             }, status=status.HTTP_400_BAD_REQUEST)
 
-        if user is not None:
-            # Email
-            subject = "Verify Email for your account on My App"
-            template = "auth/email/password_reset.html"
-            context_data = {
-                "host": settings.FRONTEND_HOST,
-                "uidb64": urlsafe_base64_encode(force_bytes(user.id)),
-                "token": default_token_generator.make_token(user=user),
-                "protocol": settings.FRONTEND_PROTOCOL
-            }
-            print(context_data)
+        try:
+            # Send Email here
+            send_password_reset_mail(user=user)
+            return Response({
+                "status": "success",
+                "message": "Password Reset Link has been sent to the registered email address",
+                "payload": {}
+            }, status=status.HTTP_200_OK)
 
-            try:
-                # Send EMail here
-                return Response({
-                    "status": "success",
-                    "message": "Password Reset Link has been sent to the registered email address",
-                    "payload": {}
-                }, status=status.HTTP_200_OK)
-
-            except Exception as e:
-                return Response({
-                    "status": "error",
-                    "message": "Some error occurred",
-                    "payload": {}
-                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        except Exception as e:
+            print(e)
+            return Response({
+                "status": "error",
+                "message": "Some error occurred",
+                "payload": {}
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
             
 
 class PasswordResetConfirmView(GenericAPIView):
@@ -381,6 +467,7 @@ class PasswordResetConfirmView(GenericAPIView):
         if user is not None and default_token_generator.check_token(user, token):
             new_password = serializer.validated_data['new_password']
             user.set_password(new_password)
+            user.save()
             return Response({
                 'status': 'success',
                 'message': 'Your password has been changed. Please login with your new password.',

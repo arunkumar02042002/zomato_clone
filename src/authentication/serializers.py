@@ -12,6 +12,9 @@ from rest_framework_simplejwt.token_blacklist.models import OutstandingToken
 from rest_framework_simplejwt.utils import datetime_from_epoch
 
 
+# Others
+import os
+
 User = get_user_model()
 
 
@@ -21,8 +24,11 @@ class CreateUserSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             "email",
-            "password"
+            "password",
+            "user_type",
         ]
+
+        read_only_fields = ["user_type"]
 
         # Use this to define which variables are read only and write_only
         extra_kwargs = {
@@ -42,6 +48,40 @@ class CreateUserSerializer(serializers.ModelSerializer):
         return lower_case_email
 
 
+class RegisterRestaurantSerializer(serializers.Serializer):
+    first_name = serializers.CharField(max_length=255)
+    last_name = serializers.CharField(max_length=255)
+    email = serializers.EmailField()
+    password = serializers.CharField(max_length=255)
+    license = serializers.CharField(max_length=255)
+    restaurant_name = serializers.CharField(max_length=255)
+
+    class Meta:
+        extra_kwargs = {
+            'email': {
+                'validators': [EmailValidator]
+            }
+        }
+
+    # Naming convention - validate_ followed by field name
+    def validate_password(self, value):
+        validate_password(value)
+        return value
+
+    def validate_email(self, value):
+        lower_case_email = value.lower()
+        return lower_case_email
+    
+    def validate_license(self, value):
+        """
+        Validate that the license path points to an existing file.
+        """
+        path = os.path.join(settings.MEDIA_ROOT, value)
+        if not os.path.isfile(path):
+            raise serializers.ValidationError("Invalid license image path provided.")
+        return value
+
+
 class UserLoginSerializer(serializers.ModelSerializer):
     username_or_email = serializers.CharField(
         write_only=True
@@ -54,6 +94,7 @@ class UserLoginSerializer(serializers.ModelSerializer):
             "email",
             "password",
             "username",
+            "user_type",
             "first_name",
             "last_name",
             "date_joined",
@@ -63,6 +104,7 @@ class UserLoginSerializer(serializers.ModelSerializer):
         read_only_fields = [
             "email",
             "username",
+            "user_type",
             "first_name",
             "last_name",
             "date_joined",
@@ -125,11 +167,17 @@ class ChangePasswordSerializer(serializers.Serializer):
         
         if not confirm_password == new_password:
             raise serializers.ValidationError({
-                "error":"Confirm Password and New Password must be same."
+                "confim_password":"Confirm Password and New Password must be same."
+            })
+        
+        if new_password == old_password:
+            raise serializers.ValidationError({
+                "new_password":"You new password can't be same as your previour password."
             })
 
         return super().validate(attrs=attrs)
-    
+
+ 
 class PasswordResetSerializer(serializers.Serializer):
 
     email = serializers.EmailField(required=True)
@@ -159,6 +207,7 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
             })
 
         return super().validate(attrs=attrs)
+
 
 class CustomTokenRefreshSerializer(TokenRefreshSerializer):
     def validate(self, attrs):

@@ -1,0 +1,13 @@
+{% autoescape off %}
+Hi {{ user.email }},
+Thanks for signing up to Zomato!
+
+To set up your account, Please click on the link to confirm your registration,
+{{protocol}}://{{ host }}{% url 'activate-account' uidb64=uid token=token %}
+
+Thanks for using our site!
+
+Sincerely,
+Zomato Team
+
+{% endautoescape %}

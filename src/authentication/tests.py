@@ -23,6 +23,9 @@ from .models import Profile
 from .signals import post_save_create_profile_receiver
 
 
+# Other apps imports
+from restaurants  import models as restaurants_models
+
 User = get_user_model()
 
 
@@ -473,3 +476,59 @@ class PasswordResetConfirmViewTest(TestCase):
         data = {'new_password': 'new_test_password', 'confirm_password':'new_test_password'}
         response = self.client.post(invalid_reset_confirm_url, data, format='json')
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+class RestaurantSignUpViewTest(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+
+    def test_valid_signup(self):
+        """
+        Test valid restaurant signup.
+        """
+        data = {
+            "email": "test@example.com",
+            "password": "test_password",
+            "first_name": "Test",
+            "last_name": "Kumar",
+            "restaurant_name": "Test Restaurant",
+            "license": "restaurants/license/khanaWale-logo.png"
+        }
+
+        response = self.client.post(reverse('register-restaurant'), data=data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        # Check if user and restaurant are created
+        user = User.objects.filter(email=data['email']).first()
+
+        self.assertIsNotNone(user)
+        self.assertIsNotNone(user.profile)
+        self.assertTrue(restaurants_models.Restaurant.objects.filter(name=data['restaurant_name']).exists())
+
+    def test_invalid_signup(self):
+        """
+        Test invalid restaurant signup.
+        """
+        # Invalid data (missing required fields)
+        data = {}
+
+        response = self.client.post(reverse('register-restaurant'), data=data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_invalid_license_path(self):
+        """
+        Test invalid license path
+        """
+
+        data = {
+            "email": "test@example.com",
+            "password": "test_password",
+            "first_name": "Test",
+            "last_name": "Kumar",
+            "restaurant_name": "Test Restaurant",
+            "license": "wrong_path"
+        }
+
+        response = self.client.post(reverse('register-restaurant'), data=data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+

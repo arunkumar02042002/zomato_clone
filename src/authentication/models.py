@@ -8,12 +8,12 @@ from django.utils import timezone
 class UserTypeChoices:
     ADMIN = 'ADMIN'
     USER = 'USER'
-    VENDOR = 'VENDOR'
+    RESTAURANT = 'RESTAURANT'
 
     choices = [
         (ADMIN, 'Admin'),
         (USER, 'User'),
-        (VENDOR, 'Vendor'),
+        (RESTAURANT, 'Restaurant'),
     ]
 
 
@@ -96,7 +96,7 @@ class User(AbstractBaseUser, PermissionsMixin):
             "Unselect this instead of deleting accounts."
         ),
     )
-    
+
     date_joined = models.DateTimeField(_("date joined"), default=timezone.now)
 
     objects = CustomUserManager()
