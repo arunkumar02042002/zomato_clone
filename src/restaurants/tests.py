@@ -4,6 +4,10 @@ from django.db.models.signals import post_save
 from django.contrib.auth import get_user_model
 
 
+from rest_framework.test import APIClient
+from rest_framework import status
+from django.urls import reverse
+
 from authentication.signals import post_save_create_profile_receiver
 
 from .models import Profile, Restaurant, OpeningHour
@@ -127,3 +131,76 @@ class OpeningHourModelTest(TestCase):
         Test relationship with the Restaurant model.
         """
         self.assertEqual(self.opening_hour.Restaurants, self.restaurant)
+
+
+class RestarauntApprovAndDisapproveAdminViewTest(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        # Create an admin user for testing
+        self.admin_user = User.objects.create_user(username='adminuser', email='admin@example.com', password='admin_password', is_staff=True)
+        # Create a regular user for testing
+        self.user = User.objects.create_user(username='testuser', email='test@example.com', password='test_password')
+        # Create a profile for the regular user
+        self.user_profile = self.user.profile
+        # Create a restaurant for testing
+        self.restaurant = Restaurant.objects.create(user=self.user, profile=self.user_profile, name='Test Restaurant', slug='test-restaurant')
+
+    def test_approve_restaurant_as_admin(self):
+        """
+        Test approving a restaurant by an admin user.
+        """
+        # Login as admin user
+        self.client.force_authenticate(self.admin_user)
+        data = {"is_approved":True}
+
+        response = self.client.post(reverse('approve-disapprove-restaurant', kwargs={'pk': self.restaurant.pk}), data=data, format='json', )
+        
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(Restaurant.objects.get(pk=self.restaurant.pk).is_approved)
+
+    def test_disapprove_restaurant_as_admin(self):
+        """
+        Test disapproving a restaurant by an admin user.
+        """
+        # Login as admin user
+        self.client.force_authenticate(self.admin_user)
+
+        data = {"is_approved":False}
+        # Send a POST request to disapprove the restaurant
+        response = self.client.post(reverse('approve-disapprove-restaurant', kwargs={'pk': self.restaurant.pk}), data=data, format='json')
+       
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(Restaurant.objects.get(pk=self.restaurant.pk).is_approved)
+
+    def test_unauthorized_access(self):
+        """
+        Test unauthorized access by a regular user.
+        """
+        # Login as regular user
+        self.client.force_authenticate(self.user)
+        # Send a POST request to approve/disapprove the restaurant
+        response = self.client.post(reverse('approve-disapprove-restaurant', kwargs={'pk': self.restaurant.pk}), {'is_approved': True}, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    # def test_invalid_data(self):
+    #     """
+    #     Test handling invalid data in the request.
+    #     """
+    #     # Login as admin user
+    #     self.client.force_login(self.admin_user)
+    #     # Send a POST request with invalid data
+    #     response = self.client.post(reverse('approve-disapprove-restaurant', kwargs={'pk': self.restaurant.pk}), {'invalid_key': True})
+    #     # Check that the response status code is 400 Bad Request
+    #     self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    # def test_invalid_primary_key(self):
+    #     """
+    #     Test handling an invalid primary key in the request.
+    #     """
+    #     # Login as admin user
+    #     self.client.force_login(self.admin_user)
+    #     # Send a POST request with an invalid primary key
+    #     response = self.client.post(reverse('approve-disapprove-restaurant', kwargs={'pk': 999}), {'is_approved': True})
+    #     # Check that the response status code is 400 Bad Request
+    #     self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)

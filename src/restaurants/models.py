@@ -1,6 +1,8 @@
 # Django Imports
+from typing import Iterable
 from django.db import models
 from django.contrib.auth import get_user_model
+from django.utils.text import slugify
 
 # Other imports
 from datetime import time
@@ -12,12 +14,12 @@ User = get_user_model()
 
 # Create your models here.
 class Restaurant(models.Model):
-
+    
     user = models.OneToOneField(User, on_delete=models.CASCADE)
     profile = models.OneToOneField(Profile, on_delete=models.CASCADE)
 
     name = models.CharField(max_length=50, unique=True, db_index=True)
-    slug = models.SlugField(max_length=100, unique=True, db_index=True)
+    slug = models.SlugField(max_length=100, blank=True, null=True, unique=True, db_index=True)
 
     license = models.ImageField(upload_to='restaurants/license')
     is_approved = models.BooleanField(default=False)
@@ -27,6 +29,12 @@ class Restaurant(models.Model):
 
     def __str__(self):
         return self.name
+    
+    def save(self, *args, **kwargs):
+        # Setting the slug
+        if not self.slug:
+            self.slug = slugify(self.name)
+        super().save(*args, **kwargs)
 
 
 class DaysChoices:    
