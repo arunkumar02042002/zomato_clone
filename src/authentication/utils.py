@@ -21,7 +21,7 @@ def send_account_verification_email(user):
         "token": account_activation_token.make_token(user=user),
         "protocol": settings.FRONTEND_PROTOCOL
     }
-    print('Verify context', context)
+    # print('Verify context', context)
     message = render_to_string(template_name=template_name, context=context)
     mail = EmailMessage(subject=subject, body=message, from_email=settings.DEFAULT_FROM_EMAIL, to=[user.email])
     mail.send()
@@ -37,7 +37,7 @@ def send_password_reset_mail(user):
         "token": default_token_generator.make_token(user=user),
         "protocol": settings.FRONTEND_PROTOCOL
     }
-    print('forget password context', context)
+    # print('forget password context', context)
     message = render_to_string(template_name=template_name, context=context)
     mail = EmailMessage(subject=subject, body=message, from_email=settings.DEFAULT_FROM_EMAIL, to=[user.email])
     mail.send()

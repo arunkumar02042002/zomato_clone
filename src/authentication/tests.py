@@ -327,7 +327,7 @@ class UserLogoutViewTest(TestCase):
         """
         data = {'refresh': self.refresh}
         response = self.client.post(self.logout_url, data, format='json')
-        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
 
 class CustomTokenRefreshViewTest(TestCase):
